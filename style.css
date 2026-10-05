@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>B-Tree Visualization</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f4f7fb;
+      color: #222;
+    }
+
+    h1 {
+      text-align: center;
+      color: #1e3a8a;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin: 20px;
+      flex-wrap: wrap;
+    }
+
+    input {
+      padding: 10px;
+      width: 180px;
+      border: 1px solid #aaa;
+      border-radius: 6px;
+      font-size: 16px;
+    }
+
+    button {
+      padding: 10px 18px;
+      border: none;
+      border-radius: 6px;
+      background: #2563eb;
+      color: white;
+      cursor: pointer;
+      font-size: 15px;
+    }
+
+    button:hover {
+      background: #1d4ed8;
+    }
+
+    #tree {
+      display: flex;
+      justify-content: center;
+      padding: 30px;
+      overflow-x: auto;
+    }
+
+    .tree-level {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin: 20px 0;
+    }
+
+    .node {
+      display: flex;
+      border: 2px solid #2563eb;
+      background: #dbeafe;
+      border-radius: 8px;
+      padding: 8px;
+      min-width: 50px;
+      justify-content: center;
+      gap: 4px;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .key {
+      background: #2563eb;
+      color: white;
+      padding: 7px 10px;
+      border-radius: 5px;
+      font-weight: bold;
+    }
+
+    .node-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .children {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+    }
+
+    .child-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .line {
+      width: 2px;
+      height: 25px;
+      background: #555;
+    }
+
+    #message {
+      text-align: center;
+      font-weight: bold;
+      color: #166534;
+      margin: 15px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>B-Tree Visualization</h1>
+
+  <div class="controls">
+    <input
+      type="number"
+      id="value"
+      placeholder="Enter a number"
+    />
+
+    <button onclick="insertValue()">Insert</button>
+    <button onclick="searchValue()">Search</button>
+    <button onclick="clearTree()">Clear</button>
+  </div>
+
+  <div id="message"></div>
+
+  <div id="tree"></div>
+
+  <script>
+    // Minimum degree of the B-Tree
+    // t = 2 means each node can contain at most 3 keys.
+    const T = 2;
+
+    class BTreeNode {
+      constructor(leaf = true) {
+        this.keys = [];
+        this.children = [];
+        this.leaf = leaf;
+      }
+    }
+
+    class BTree {
+      constructor() {
+        this.root = new BTreeNode(true);
+      }
+
+      // Search for a key
+      search(node, key) {
+        let i = 0;
+
+        while (i < node.keys.length && key > node.keys[i]) {
+          i++;
+        }
+
+        if (i < node.keys.length && key === node.keys[i]) {
+          return true;
+        }
+
+        if (node.leaf) {
+          return false;
+        }
+
+        return this.search(node.children[i], key);
+      }
+
+      // Insert a key
+      insert(key) {
+        // Don't insert duplicates
+        if (this.search(this.root, key)) {
+          return false;
+        }
+
+        let root = this.root;
+
+        // Root is full
+        if (root.keys.length === 2 * T - 1) {
+          let newRoot = new BTreeNode(false);
+
+          newRoot.children.push(root);
+
+          this.splitChild(newRoot, 0);
+
+          this.root = newRoot;
+
+          this.insertNonFull(newRoot, key);
+        } else {
+          this.insertNonFull(root, key);
+        }
+
+        return true;
+      }
+
+      // Insert into a node that is not full
+      insertNonFull(node, key) {
+        let i = node.keys.length - 1;
+
+        if (node.leaf) {
+          node.keys.push(0);
+
+          while (i >= 0 && key < node.keys[i]) {
+            node.keys[i + 1] = node.keys[i];
+            i--;
+          }
+
+          node.keys[i + 1] = key;
+        } else {
+
+          while (i >= 0 && key < node.keys[i]) {
+            i--;
+          }
+
+          i++;
+
+          // Child is full
+          if (node.children[i].keys.length === 2 * T - 1) {
+            this.splitChild(node, i);
+
+            if (key > node.keys[i]) {
+              i++;
+            }
+          }
+
+          this.insertNonFull(node.children[i], key);
+        }
+      }
+
+      // Split a full child
+      splitChild(parent, index) {
+        let fullChild = parent.children[index];
+
+        let newChild = new BTreeNode(fullChild.leaf);
+
+        // Middle key
+        let middleKey = fullChild.keys[T - 1];
+
+        // Move keys after middle to new child
+        newChild.keys = fullChild.keys.splice(T);
+
+        // Remove middle key
+        fullChild.keys.splice(T - 1, 1);
+
+        // Move children if not leaf
+        if (!fullChild.leaf) {
+          newChild.children = fullChild.children.splice(T);
+        }
+
+        parent.children.splice(index, 0, fullChild);
+        parent.children.splice(index + 1, 0, newChild);
+
+        parent.keys.splice(index, 0, middleKey);
+      }
+
+      // Delete all data
+      clear() {
+        this.root = new BTreeNode(true);
+      }
+    }
+
+    const btree = new BTree();
+
+    // Insert button
+    function insertValue() {
+      const input = document.getElementById("value");
+      const value = Number(input.value);
+
+      if (input.value === "" || isNaN(value)) {
+        showMessage("Please enter a valid number.", true);
+        return;
+      }
+
+      const inserted = btree.insert(value);
+
+      if (inserted) {
+        showMessage(`Inserted ${value}`);
+      } else {
+        showMessage(`${value} already exists.`, true);
+      }
+
+      input.value = "";
+      renderTree();
+    }
+
+    // Search button
+    function searchValue() {
+      const input = document.getElementById("value");
+      const value = Number(input.value);
+
+      if (input.value === "" || isNaN(value)) {
+        showMessage("Please enter a valid number.", true);
+        return;
+      }
+
+      const found = btree.search(btree.root, value);
+
+      if (found) {
+        showMessage(`${value} found in B-Tree`);
+      } else {
+        showMessage(`${value} not found`, true);
+      }
+    }
+
+    // Clear button
+    function clearTree() {
+      btree.clear();
+      renderTree();
+      showMessage("B-Tree cleared.");
+    }
+
+    // Display messages
+    function showMessage(message, error = false) {
+      const element = document.getElementById("message");
+
+      element.textContent = message;
+      element.style.color = error ? "#dc2626" : "#166534";
+    }
+
+    // Render B-Tree
+    function renderTree() {
+      const container = document.getElementById("tree");
+
+      container.innerHTML = "";
+
+      const rootContainer = createNodeElement(btree.root);
+
+      container.appendChild(rootContainer);
+    }
+
+    function createNodeElement(node) {
+      const container = document.createElement("div");
+      container.className = "node-container";
+
+      // Node
+      const nodeElement = document.createElement("div");
+      nodeElement.className = "node";
+
+      node.keys.forEach(key => {
+        const keyElement = document.createElement("div");
+        keyElement.className = "key";
+        keyElement.textContent = key;
+
+        nodeElement.appendChild(keyElement);
+      });
+
+      container.appendChild(nodeElement);
+
+      // Children
+      if (!node.leaf) {
+        const childrenContainer = document.createElement("div");
+        childrenContainer.className = "children";
+
+        node.children.forEach(child => {
+          const childWrapper = document.createElement("div");
+          childWrapper.className = "child-wrapper";
+
+          const line = document.createElement("div");
+          line.className = "line";
+
+          childWrapper.appendChild(line);
+          childWrapper.appendChild(createNodeElement(child));
+
+          childrenContainer.appendChild(childWrapper);
+        });
+
+        container.appendChild(childrenContainer);
+      }
+
+      return container;
+    }
+
+    // Initial render
+    renderTree();
+  </script>
+
+</body>
+</html>
